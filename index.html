@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maryland Economic Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg: #F0F2F0;
+    --surface: #FFFFFF;
+    --border: #D8DDD8;
+    --text-primary: #1A1F1A;
+    --text-secondary: #5A6B5A;
+    --text-muted: #8A9B8A;
+    --accent: #2D6A4F;
+    --accent-light: #52B788;
+    --accent-pale: #D8F3DC;
+    --danger: #B5383B;
+    --danger-pale: #FDE8E8;
+    --gold: #B5811A;
+    --gold-pale: #FEF3CD;
+
+    /* Choropleth scale */
+    --c1: #D8F3DC;
+    --c2: #95D5B2;
+    --c3: #52B788;
+    --c4: #1B4332;
+    --c5: #081C15;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--text-primary);
+    color: white;
+    padding: 40px 48px 36px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 24px;
+  }
+
+  header .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-light);
+    margin-bottom: 8px;
+  }
+
+  header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(28px, 4vw, 48px);
+    font-weight: 400;
+    line-height: 1.1;
+    color: white;
+  }
+
+  header .subtitle {
+    font-size: 14px;
+    color: rgba(255,255,255,0.55);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  header .state-stat {
+    text-align: right;
+  }
+
+  header .state-stat .big {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(32px, 5vw, 56px);
+    color: var(--accent-light);
+    line-height: 1;
+  }
+
+  header .state-stat .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.45);
+    margin-top: 4px;
+  }
+
+  /* SUMMARY CARDS */
+  .summary-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-card {
+    background: var(--surface);
+    padding: 24px 28px;
+  }
+
+  .stat-card .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .stat-card .value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+
+  .stat-card .sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+  }
+
+  .stat-card.highlight-high .value { color: var(--accent); }
+  .stat-card.highlight-low .value { color: var(--danger); }
+
+  /* MAIN LAYOUT */
+  .main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 48px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .panel.full-width {
+    grid-column: 1 / -1;
+  }
+
+  .panel-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .panel-header h2 {
+    font-family: 'DM Serif Display', serif;
+    font-weight: 400;
+    font-size: 18px;
+    color: var(--text-primary);
+  }
+
+  .panel-header .source {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+
+  .panel-body {
+    padding: 24px;
+  }
+
+  /* MAP */
+  #map-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1.5;
+    overflow: visible;
+  }
+
+  #maryland-map {
+    width: 100%;
+    height: 100%;
+  }
+
+  .county-shape {
+    stroke: var(--surface);
+    stroke-width: 1.5;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .county-shape:hover {
+    stroke-width: 2.5;
+    stroke: var(--text-primary);
+    opacity: 0.9;
+  }
+
+  /* MAP TOOLTIP */
+  #tooltip {
+    position: fixed;
+    background: var(--text-primary);
+    color: white;
+    padding: 10px 14px;
+    border-radius: 3px;
+    font-size: 13px;
+    pointer-events: none;
+    display: none;
+    z-index: 9999;
+    min-width: 180px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  }
+
+  #tooltip .tip-name {
+    font-family: 'DM Serif Display', serif;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+
+  #tooltip .tip-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent-light);
+  }
+
+  #tooltip .tip-rank {
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+    margin-top: 2px;
+  }
+
+  /* LEGEND */
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .legend-bar {
+    flex: 1;
+    height: 8px;
+    border-radius: 2px;
+    background: linear-gradient(to right, #D8F3DC, #95D5B2, #52B788, #2D6A4F, #1B4332, #081C15);
+  }
+
+  /* CHART WRAPPERS */
+  .chart-wrap {
+    position: relative;
+    height: 300px;
+  }
+
+  .chart-wrap.tall {
+    height: 420px;
+  }
+
+  /* QUINTILE BADGE */
+  .quintile-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  /* TABLE */
+  .county-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .county-table th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+  }
+
+  .county-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #F4F6F4;
+    vertical-align: middle;
+  }
+
+  .county-table tr:last-child td { border-bottom: none; }
+
+  .county-table tr:hover td { background: var(--bg); }
+
+  .county-table .rank-cell {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    width: 32px;
+  }
+
+  .county-table .income-cell {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .bar-inline {
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--accent);
+    margin-top: 4px;
+    transition: width 0.3s;
+  }
+
+  .table-scroll {
+    max-height: 420px;
+    overflow-y: auto;
+  }
+
+  /* FOOTER */
+  footer {
+    text-align: center;
+    padding: 32px 48px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    margin: 0 48px;
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    header { padding: 28px 24px; grid-template-columns: 1fr; }
+    header .state-stat { text-align: left; }
+    .summary-strip { grid-template-columns: repeat(2, 1fr); }
+    .main { padding: 24px; gap: 20px; grid-template-columns: 1fr; }
+    footer { margin: 0 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="tooltip">
+  <div class="tip-name" id="tip-name"></div>
+  <div class="tip-val" id="tip-val"></div>
+  <div class="tip-rank" id="tip-rank"></div>
+</div>
+
+<header>
+  <div>
+    <div class="eyebrow">Maryland · Economic Dashboard · 2024</div>
+    <h1>Per Capita Income<br>by County</h1>
+    <p class="subtitle">Bureau of Economic Analysis data via FRED · All 24 jurisdictions · 2024 estimates</p>
+  </div>
+  <div class="state-stat">
+    <div class="big">$102,905</div>
+    <div class="label">State median household<br>income · 2024</div>
+  </div>
+</header>
+
+<div class="summary-strip">
+  <div class="stat-card highlight-high">
+    <div class="label">Highest PCPI</div>
+    <div class="value">$104,882</div>
+    <div class="sub">Montgomery County</div>
+  </div>
+  <div class="stat-card highlight-low">
+    <div class="label">Lowest PCPI</div>
+    <div class="value">$41,421</div>
+    <div class="sub">Somerset County</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">State Average PCPI</div>
+    <div class="value">$73,477</div>
+    <div class="sub">Unweighted county mean</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Income Gap (High–Low)</div>
+    <div class="value">2.5×</div>
+    <div class="sub">Montgomery vs. Somerset</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- MAP -->
+  <div class="panel" style="grid-column: 1 / -1;">
+    <div class="panel-header">
+      <h2>Per Capita Personal Income by County</h2>
+      <span class="source">BEA · 2024</span>
+    </div>
+    <div class="panel-body">
+      <div id="map-container">
+        <svg id="maryland-map" viewBox="0 0 900 380" xmlns="http://www.w3.org/2000/svg">
+          <!-- Maryland county paths — approximated outlines using simplified coordinates -->
+
+          <!-- GARRETT -->
+          <path id="county-Garrett" class="county-shape" d="M 0,60 L 85,60 L 90,190 L 0,195 Z" />
+          <!-- ALLEGANY -->
+          <path id="county-Allegany" class="county-shape" d="M 85,60 L 155,55 L 160,190 L 90,190 Z" />
+          <!-- WASHINGTON -->
+          <path id="county-Washington" class="county-shape" d="M 155,55 L 230,40 L 235,195 L 160,190 Z" />
+          <!-- FREDERICK -->
+          <path id="county-Frederick" class="county-shape" d="M 230,40 L 330,35 L 330,200 L 235,195 Z" />
+          <!-- CARROLL -->
+          <path id="county-Carroll" class="county-shape" d="M 330,35 L 400,30 L 400,145 L 330,145 Z" />
+          <!-- BALTIMORE COUNTY -->
+          <path id="county-Baltimore County" class="county-shape" d="M 400,30 L 475,20 L 480,95 L 475,145 L 400,145 Z" />
+          <!-- HARFORD -->
+          <path id="county-Harford" class="county-shape" d="M 475,20 L 550,15 L 555,100 L 480,95 Z" />
+          <!-- CECIL -->
+          <path id="county-Cecil" class="county-shape" d="M 550,15 L 620,10 L 625,110 L 555,100 Z" />
+          <!-- HOWARD -->
+          <path id="county-Howard" class="county-shape" d="M 330,145 L 400,145 L 400,220 L 330,220 Z" />
+          <!-- MONTGOMERY -->
+          <path id="county-Montgomery" class="county-shape" d="M 235,195 L 330,200 L 330,295 L 235,300 Z" />
+          <!-- BALTIMORE CITY -->
+          <path id="county-Baltimore city" class="county-shape" d="M 443,95 L 480,95 L 475,145 L 443,145 Z" />
+          <!-- ANNE ARUNDEL -->
+          <path id="county-Anne Arundel" class="county-shape" d="M 400,145 L 475,145 L 480,240 L 400,240 Z" />
+          <!-- PRINCE GEORGE'S -->
+          <path id="county-Prince George's" class="county-shape" d="M 330,220 L 400,220 L 400,320 L 330,320 Z" />
+          <!-- CALVERT -->
+          <path id="county-Calvert" class="county-shape" d="M 400,240 L 455,240 L 455,345 L 400,345 Z" />
+          <!-- CHARLES -->
+          <path id="county-Charles" class="county-shape" d="M 330,320 L 400,320 L 410,370 L 330,375 Z" />
+          <!-- ST. MARY'S -->
+          <path id="county-St. Mary's" class="county-shape" d="M 400,345 L 455,345 L 460,375 L 400,375 Z" />
+          <!-- KENT -->
+          <path id="county-Kent" class="county-shape" d="M 600,10 L 660,8 L 660,95 L 600,95 Z" />
+          <!-- QUEEN ANNE'S -->
+          <path id="county-Queen Anne's" class="county-shape" d="M 555,100 L 625,110 L 660,95 L 660,180 L 555,180 Z" />
+          <!-- TALBOT -->
+          <path id="county-Talbot" class="county-shape" d="M 555,180 L 660,180 L 660,260 L 555,260 Z" />
+          <!-- CAROLINE -->
+          <path id="county-Caroline" class="county-shape" d="M 625,110 L 720,105 L 720,195 L 660,180 Z" />
+          <!-- DORCHESTER -->
+          <path id="county-Dorchester" class="county-shape" d="M 480,260 L 660,260 L 660,340 L 480,340 Z" />
+          <!-- WICOMICO -->
+          <path id="county-Wicomico" class="county-shape" d="M 660,195 L 760,190 L 760,290 L 660,290 Z" />
+          <!-- SOMERSET -->
+          <path id="county-Somerset" class="county-shape" d="M 660,290 L 760,290 L 760,355 L 660,355 Z" />
+          <!-- WORCESTER -->
+          <path id="county-Worcester" class="county-shape" d="M 760,190 L 880,185 L 880,355 L 760,355 Z" />
+
+          <!-- County Labels -->
+          <text x="42" y="132" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Garrett</text>
+          <text x="122" y="128" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Allegany</text>
+          <text x="197" y="122" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Washington</text>
+          <text x="282" y="118" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Frederick</text>
+          <text x="365" y="90" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Carroll</text>
+          <text x="437" y="88" font-size="7.5" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Balt. Co.</text>
+          <text x="515" y="60" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Harford</text>
+          <text x="587" y="60" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Cecil</text>
+          <text x="365" y="185" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Howard</text>
+          <text x="282" y="250" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Montgomery</text>
+          <text x="461" y="122" font-size="6" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Balt. City</text>
+          <text x="437" y="195" font-size="7.5" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Anne Arundel</text>
+          <text x="365" y="272" font-size="7.5" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Prince George's</text>
+          <text x="427" y="295" font-size="7.5" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Calvert</text>
+          <text x="365" y="350" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Charles</text>
+          <text x="430" y="362" font-size="7" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">St. Mary's</text>
+          <text x="630" y="55" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Kent</text>
+          <text x="607" y="145" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Queen Anne's</text>
+          <text x="607" y="222" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Talbot</text>
+          <text x="672" y="152" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Caroline</text>
+          <text x="570" y="302" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Dorchester</text>
+          <text x="710" y="242" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Wicomico</text>
+          <text x="710" y="325" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Somerset</text>
+          <text x="820" y="272" font-size="8" fill="white" text-anchor="middle" font-family="Inter" opacity="0.9">Worcester</text>
+        </svg>
+      </div>
+      <div class="legend">
+        <span>$41K</span>
+        <div class="legend-bar"></div>
+        <span>$105K</span>
+        <span style="margin-left:12px; color: var(--text-muted)">Per Capita Personal Income</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BAR CHART - All counties ranked -->
+  <div class="panel full-width">
+    <div class="panel-header">
+      <h2>Per Capita Personal Income — All Counties Ranked</h2>
+      <span class="source">BEA · 2024</span>
+    </div>
+    <div class="panel-body">
+      <div class="chart-wrap tall">
+        <canvas id="barChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- DISTRIBUTION CHART -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Income Distribution</h2>
+      <span class="source">Histogram · 2024 PCPI</span>
+    </div>
+    <div class="panel-body">
+      <div class="chart-wrap">
+        <canvas id="histChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- REGIONAL COMPARISON -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Regional Clusters</h2>
+      <span class="source">Average PCPI by region</span>
+    </div>
+    <div class="panel-body">
+      <div class="chart-wrap">
+        <canvas id="regionChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- DATA TABLE -->
+  <div class="panel full-width">
+    <div class="panel-header">
+      <h2>Complete County Data</h2>
+      <span class="source">Sorted by income · 2024 PCPI</span>
+    </div>
+    <div class="panel-body">
+      <div class="table-scroll">
+        <table class="county-table" id="countyTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>County</th>
+              <th>Per Capita Income</th>
+              <th>YoY Change</th>
+              <th>vs. State Avg</th>
+              <th>Income Scale</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>Data: <a href="https://fred.stlouisfed.org/release/tables?eid=267327&rid=175" target="_blank">Bureau of Economic Analysis via FRED</a> · Per Capita Personal Income by County, 2024 Annual · State median household income from <a href="https://msa.maryland.gov/msa/mdmanual/01glance/economy/html/income.html" target="_blank">Maryland State Archives</a> · Dashboard built with Chart.js · <a href="https://github.com" target="_blank">GitHub Pages</a></p>
+</footer>
+
+<script>
+const countyData = [
+  { name: "Montgomery County",     pcpi: 104882, prev: 100454, region: "Central" },
+  { name: "Talbot County",         pcpi: 102548, prev: 97931,  region: "Eastern Shore" },
+  { name: "Howard County",         pcpi: 99767,  prev: 94893,  region: "Central" },
+  { name: "Anne Arundel County",   pcpi: 87614,  prev: 83442,  region: "Central" },
+  { name: "Queen Anne's County",   pcpi: 86365,  prev: 82403,  region: "Eastern Shore" },
+  { name: "Kent County",           pcpi: 80878,  prev: 77170,  region: "Eastern Shore" },
+  { name: "Calvert County",        pcpi: 79588,  prev: 75203,  region: "Southern MD" },
+  { name: "Baltimore County",      pcpi: 78953,  prev: 75259,  region: "Central" },
+  { name: "Frederick County",      pcpi: 78929,  prev: 75211,  region: "Western MD" },
+  { name: "Carroll County",        pcpi: 78696,  prev: 74641,  region: "Central" },
+  { name: "Worcester County",      pcpi: 73572,  prev: 69230,  region: "Eastern Shore" },
+  { name: "St. Mary's County",     pcpi: 73314,  prev: 69728,  region: "Southern MD" },
+  { name: "Harford County",        pcpi: 74919,  prev: 71139,  region: "Central" },
+  { name: "Charles County",        pcpi: 70211,  prev: 66412,  region: "Southern MD" },
+  { name: "Baltimore city",        pcpi: 69564,  prev: 66282,  region: "Central" },
+  { name: "Garrett County",        pcpi: 62692,  prev: 58060,  region: "Western MD" },
+  { name: "Cecil County",          pcpi: 61236,  prev: 58610,  region: "Central" },
+  { name: "Dorchester County",     pcpi: 60255,  prev: 57062,  region: "Eastern Shore" },
+  { name: "Caroline County",       pcpi: 59692,  prev: 56456,  region: "Eastern Shore" },
+  { name: "Prince George's County",pcpi: 59684,  prev: 56713,  region: "Central" },
+  { name: "Washington County",     pcpi: 59536,  prev: 56523,  region: "Western MD" },
+  { name: "Allegany County",       pcpi: 52707,  prev: 49414,  region: "Western MD" },
+  { name: "Wicomico County",       pcpi: 51806,  prev: 48917,  region: "Eastern Shore" },
+  { name: "Somerset County",       pcpi: 41421,  prev: 38184,  region: "Eastern Shore" },
+];
+
+// Sort by income desc
+countyData.sort((a,b) => b.pcpi - a.pcpi);
+
+const stateAvg = Math.round(countyData.reduce((s,c) => s + c.pcpi, 0) / countyData.length);
+const maxPcpi = countyData[0].pcpi;
+const minPcpi = countyData[countyData.length-1].pcpi;
+
+// Map county name -> data for tooltip
+const countyMap = {};
+countyData.forEach((c, i) => {
+  countyMap[c.name] = { ...c, rank: i+1 };
+});
+
+// CHOROPLETH COLOR
+function getColor(pcpi) {
+  const t = (pcpi - minPcpi) / (maxPcpi - minPcpi);
+  if (t < 0.2) return '#D8F3DC';
+  if (t < 0.4) return '#95D5B2';
+  if (t < 0.6) return '#52B788';
+  if (t < 0.8) return '#2D6A4F';
+  return '#1B4332';
+}
+
+// Apply colors to map
+document.querySelectorAll('.county-shape').forEach(el => {
+  const id = el.id.replace('county-', '');
+  // match partial names
+  const match = countyData.find(c => c.name.toLowerCase().startsWith(id.toLowerCase()) || id.toLowerCase().startsWith(c.name.split(' ')[0].toLowerCase()));
+  // Direct lookup
+  let d = countyMap[id] || countyMap[id + ' County'];
+  if (!d) {
+    // Fuzzy match
+    const key = Object.keys(countyMap).find(k => k.toLowerCase().includes(id.toLowerCase().split(' ')[0]));
+    if (key) d = countyMap[key];
+  }
+  if (d) {
+    el.setAttribute('fill', getColor(d.pcpi));
+    el.dataset.county = d.name;
+  } else {
+    el.setAttribute('fill', '#ccc');
+  }
+});
+
+// MAP TOOLTIP
+const tooltip = document.getElementById('tooltip');
+document.querySelectorAll('.county-shape').forEach(el => {
+  el.addEventListener('mousemove', e => {
+    const name = el.dataset.county;
+    if (!name || !countyMap[name]) return;
+    const d = countyMap[name];
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top = (e.clientY - 10) + 'px';
+    document.getElementById('tip-name').textContent = name;
+    document.getElementById('tip-val').textContent = '$' + d.pcpi.toLocaleString() + ' per capita';
+    document.getElementById('tip-rank').textContent = 'Ranked #' + d.rank + ' of 24 counties';
+  });
+  el.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+});
+
+// BAR CHART
+const barCtx = document.getElementById('barChart').getContext('2d');
+new Chart(barCtx, {
+  type: 'bar',
+  data: {
+    labels: countyData.map(c => c.name.replace(' County','').replace(' city','')),
+    datasets: [{
+      label: 'Per Capita Income (2024)',
+      data: countyData.map(c => c.pcpi),
+      backgroundColor: countyData.map(c => getColor(c.pcpi)),
+      borderWidth: 0,
+      borderRadius: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ' $' + ctx.parsed.y.toLocaleString(),
+          afterLabel: ctx => ' YoY: +' + ((countyData[ctx.dataIndex].pcpi - countyData[ctx.dataIndex].prev) / countyData[ctx.dataIndex].prev * 100).toFixed(1) + '%'
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: { font: { size: 10 }, color: '#5A6B5A', maxRotation: 45 },
+        grid: { display: false }
+      },
+      y: {
+        ticks: {
+          font: { size: 10, family: 'JetBrains Mono' },
+          color: '#8A9B8A',
+          callback: v => '$' + (v/1000).toFixed(0) + 'K'
+        },
+        grid: { color: '#E8EDE8' },
+        beginAtZero: false,
+        min: 35000
+      }
+    }
+  }
+});
+
+// HISTOGRAM
+const bins = [
+  { label: '$40–55K', min: 40000, max: 55000 },
+  { label: '$55–65K', min: 55000, max: 65000 },
+  { label: '$65–75K', min: 65000, max: 75000 },
+  { label: '$75–85K', min: 75000, max: 85000 },
+  { label: '$85–95K', min: 85000, max: 95000 },
+  { label: '$95–105K', min: 95000, max: 106000 },
+];
+const histCounts = bins.map(b => countyData.filter(c => c.pcpi >= b.min && c.pcpi < b.max).length);
+
+const histCtx = document.getElementById('histChart').getContext('2d');
+new Chart(histCtx, {
+  type: 'bar',
+  data: {
+    labels: bins.map(b => b.label),
+    datasets: [{
+      label: 'Counties',
+      data: histCounts,
+      backgroundColor: ['#D8F3DC','#95D5B2','#52B788','#40916C','#2D6A4F','#1B4332'],
+      borderWidth: 0,
+      borderRadius: 3,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ' ' + ctx.parsed.y + ' counties' } }
+    },
+    scales: {
+      x: { ticks: { font: { size: 11 }, color: '#5A6B5A' }, grid: { display: false } },
+      y: {
+        ticks: { font: { size: 11, family: 'JetBrains Mono' }, color: '#8A9B8A', stepSize: 1 },
+        grid: { color: '#E8EDE8' },
+        title: { display: true, text: 'Number of counties', font: { size: 11 }, color: '#8A9B8A' }
+      }
+    }
+  }
+});
+
+// REGIONAL CHART
+const regions = ['Central', 'Eastern Shore', 'Western MD', 'Southern MD'];
+const regionColors = ['#2D6A4F','#52B788','#95D5B2','#40916C'];
+const regionAvgs = regions.map(r => {
+  const cs = countyData.filter(c => c.region === r);
+  return Math.round(cs.reduce((s,c) => s+c.pcpi, 0) / cs.length);
+});
+
+const regionCtx = document.getElementById('regionChart').getContext('2d');
+new Chart(regionCtx, {
+  type: 'doughnut',
+  data: {
+    labels: regions,
+    datasets: [{
+      data: regionAvgs,
+      backgroundColor: regionColors,
+      borderWidth: 3,
+      borderColor: '#fff',
+      hoverBorderWidth: 4,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '60%',
+    plugins: {
+      legend: {
+        position: 'right',
+        labels: { font: { size: 12 }, color: '#1A1F1A', padding: 16 }
+      },
+      tooltip: {
+        callbacks: {
+          label: ctx => ' Avg PCPI: $' + ctx.parsed.toLocaleString()
+        }
+      }
+    }
+  }
+});
+
+// TABLE
+const tbody = document.getElementById('tableBody');
+countyData.forEach((c, i) => {
+  const yoy = ((c.pcpi - c.prev) / c.prev * 100).toFixed(1);
+  const vsAvg = ((c.pcpi - stateAvg) / stateAvg * 100).toFixed(1);
+  const barWidth = Math.round((c.pcpi / maxPcpi) * 100);
+  const vsAvgColor = parseFloat(vsAvg) >= 0 ? '#2D6A4F' : '#B5383B';
+  const vsSign = parseFloat(vsAvg) >= 0 ? '+' : '';
+  tbody.innerHTML += `
+    <tr>
+      <td class="rank-cell">${i+1}</td>
+      <td><strong>${c.name}</strong><br><small style="color:#8A9B8A;font-size:11px">${c.region}</small></td>
+      <td class="income-cell" style="color:${getColor(c.pcpi) === '#1B4332' || getColor(c.pcpi) === '#2D6A4F' ? '#2D6A4F' : '#1A1F1A'}">$${c.pcpi.toLocaleString()}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#2D6A4F">+${yoy}%</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${vsAvgColor}">${vsSign}${vsAvg}%</td>
+      <td style="min-width:100px"><span class="bar-inline" style="width:${barWidth}%"></span></td>
+    </tr>
+  `;
+});
+</script>
+</body>
+</html>
